@@ -1,0 +1,111 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Category {
+  category_id   Int      @id @default(autoincrement())
+  category_name String
+
+  Post          Post[]
+}
+
+model Post {
+  post_id      Int      @id @default(autoincrement())
+  post_name    String
+  post_content String
+  post_date    DateTime
+  post_state   Int
+  react        String
+  user_id      Int
+  category_id  Int
+
+  User         User      @relation(fields: [user_id], references: [user_id])
+  Category     Category  @relation(fields: [category_id], references: [category_id])
+  Comment      Comment[]
+  Post_Tag     Post_Tag[]
+}
+
+model User {
+  user_id      Int      @id @default(autoincrement())
+  username     String   @unique
+  password     String
+  created_date DateTime @default(now())
+  fullName     String
+  role         String
+  avatar       String
+
+  Post         Post[]
+  Comment      Comment[]
+  sentChat     Chat[]   @relation("sentChat")
+  receivedChat Chat[]   @relation("receivedChat")
+  Followed     Follow[] @relation("followedBy")
+  Following    Follow[] @relation("following")
+  Admin        Admin?   @relation(fields: [user_id], references: [admin_id]) // Thêm trường này
+}
+
+model Comment {
+  comment_id  Int      @id @default(autoincrement())
+  content     String
+  date_posted DateTime
+  level       Int
+  user_id     Int
+  post_id     Int
+
+  User        User      @relation(fields: [user_id], references: [user_id])
+  Post        Post      @relation(fields: [post_id], references: [post_id])
+}
+
+model Tag {
+  tag_id   Int      @id @default(autoincrement())
+  tag_name String
+
+  Post_Tag Post_Tag[]
+}
+
+model Post_Tag {
+  post_id Int
+  tag_id  Int
+
+  Post    Post @relation(fields: [post_id], references: [post_id])
+  Tag     Tag  @relation(fields: [tag_id], references: [tag_id])
+
+  @@id([post_id, tag_id])
+}
+
+model Admin {
+  admin_id Int @id @default(autoincrement())
+
+  User     User @relation(fields: [admin_id], references: [user_id])
+}
+
+model Chat {
+  chat_id       Int      @id @default(autoincrement())
+  content       String
+  date_sent     DateTime
+  user_sent     Int
+  user_received Int
+
+  sentBy        User      @relation("sentChat", fields: [user_sent], references: [user_id])
+  receivedBy    User      @relation("receivedChat", fields: [user_received], references: [user_id])
+}
+
+model Follow {
+  user_id      Int
+  user_follow  Int
+
+  User         User      @relation("followedBy", fields: [user_id], references: [user_id])
+  Following    User      @relation("following", fields: [user_follow], references: [user_id])
+
+  @@id([user_id, user_follow])
+}
