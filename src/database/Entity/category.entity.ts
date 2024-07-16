@@ -1,6 +1,7 @@
-import { Entity, Column, PrimaryGeneratedColumn, OneToMany, JoinColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, OneToMany, JoinColumn, Unique } from 'typeorm';
 import { Post } from './post.entity';
 
+@Unique(['category_name'])
 @Entity('Category')
 export class Category {
     @PrimaryGeneratedColumn('increment', {

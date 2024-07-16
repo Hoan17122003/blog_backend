@@ -20,7 +20,10 @@ async function bootstrap() {
         session({
             secret: process.env.SESSIONSECRET,
             resave: false,
-            saveUninitialized: false,
+            saveUninitialized: true,
+            cookie: {
+                secure: true,
+            },
         }),
     );
     await app.listen(8080);

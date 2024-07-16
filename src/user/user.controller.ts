@@ -1,4 +1,5 @@
 import {
+    BadRequestException,
     Body,
     Controller,
     ForbiddenException,
@@ -10,6 +11,7 @@ import {
     ParseIntPipe,
     Post,
     Put,
+    Query,
     Session,
     UploadedFile,
     UseGuards,
@@ -24,7 +26,13 @@ import { MailService } from 'src/mail/mail.service';
 import { JwtService } from '@nestjs/jwt';
 import { ValidateToKenInterceptor } from './interceptor/ValidateToken.interceptor';
 import { JwtAccessAuth } from 'src/auth/guard/JwtAccess.guard';
+import { Public } from 'src/auth/decorator/public.decorator';
+import { Roles } from 'src/auth/decorator/role.decorator';
+import { RolesGuard } from 'src/auth/guard/Role.guard';
+import { ValidateGuard } from 'src/auth/guard/ValidateGuard.guard';
+import session from 'express-session';
 
+@UseGuards(JwtAccessAuth)
 @Controller('user')
 export class UserController {
     constructor(
@@ -33,10 +41,10 @@ export class UserController {
         private readonly jwtService: JwtService,
     ) {}
 
+    @Public()
     @Post('create-account/local')
     async create(@Body('user') data: UserDTO) {
         try {
-            console.log('data : ', data);
             const a = await this.userService.CreateAccount(data);
             return {
                 message: 'success',
@@ -48,11 +56,12 @@ export class UserController {
         }
     }
 
+    @Public()
     @Post('/sent-validateToken')
     public async SendMail(
         @Body('NameEmail') nameEmail: string,
         @Body('subject') content: string,
-        @Body('link') link?: string,
+        @Body('link') link?: string, // support forget password method
     ) {
         let validateToken = '';
         for (let i = 0; i < 6; i++) {
@@ -62,12 +71,24 @@ export class UserController {
         console.log('validate : ', validateToken);
 
         if (link) {
+            const token = await this.jwtService.signAsync(
+                { nameEmail },
+                {
+                    secret: process.env.VALIDATESECRET,
+                    expiresIn: '30m',
+                },
+            );
+            const ref = `${process.env.ref}/${token}`;
             await this.mailService.sendUserConfirmation({
                 email: `${nameEmail}`,
-                subject: `Welcome to website-blog! ${content}`,
-                content: `${content} validate token : ${link}`,
+                subject: `Welcome to website-blog! forget ${content}`,
+                content: `${content} validate token : ${ref}`,
             });
-        } else if (link ?? true) {
+            return {
+                statusCode: HttpStatus.OK,
+                data: 'link khôi phục mật khẩu đã gửi đến mail của bạn',
+            };
+        } else {
             await this.mailService.sendUserConfirmation({
                 email: `${nameEmail}`,
                 subject: `Welcome to website-blog! ${content}`,
@@ -85,6 +106,8 @@ export class UserController {
         };
     }
 
+    //suport for setActive account
+    @Public()
     @UseInterceptors(ValidateToKenInterceptor)
     @Post('/ValidateToken')
     async check(@Body('email') email: string) {
@@ -95,26 +118,31 @@ export class UserController {
         };
     }
 
+    @Public()
+    @UseGuards(ValidateGuard)
     @Post('forget-password')
-    async forgetPassword(@Body('user') user: { newPassword: string; email: string; link: string; content: string }) {
+    async forgetPassword(@Body('user') user: { newPassword: string }, @Session() session: Record<string, any>) {
         try {
-            // await this.SendMail(user.email, user.content, user.link); client call send-mail method with sent-link set password
-            const handleChangePassword = await this.userService.setPassword(user.newPassword, user.email);
+            const email = session.email;
+            const handleChangePassword = await this.userService.setPassword(user.newPassword, email);
             if (handleChangePassword ?? true) throw new ForbiddenException('rất tiết đã xảy ra lỗi  ');
             return {
                 message: 'Password changed successfully',
                 statuscode: HttpStatus.OK,
             };
-        } catch (error) {}
+        } catch (error) {
+            throw new BadRequestException(error);
+        }
     }
 
-    @UseGuards(JwtAccessAuth)
-    @Get('')
+    @Roles('admin')
+    @UseGuards(RolesGuard)
+    @Get('admin/getAllUser')
     async getAll() {
         return this.userService.getAll();
     }
 
-    // update avatar
+    // update avatar changeinformation
     @UseInterceptors(
         FileInterceptor('avatar', {
             storage: diskStorage({
@@ -133,8 +161,10 @@ export class UserController {
             },
         }),
     )
-    @Post('/:user_id/avatar')
-    async UpLoadFile(@Param('user_id', new ParseIntPipe()) user_id: number, @UploadedFile() file: Express.Multer.File) {
+    @Put('/avatar')
+    async UpLoadFile(@Session() session: Record<string, any>, @UploadedFile() file: Express.Multer.File) {
+        const user_id = session.user_id;
+
         if (!file) {
             throw new NotFoundException('No file uploaded');
         }
@@ -143,13 +173,54 @@ export class UserController {
         return this.userService.updateAvatar(user_id, updateUserDto);
     }
 
-    // change information user
-    // @Put('/profile/change-information')
-    // async ChangeInformation(@Session()) {
-    //     try {
-    //         return
-    //     } catch (error) {
+    // change information user only fullname or password
+    @Put('/profile/change-information')
+    async ChangeInformation(
+        @Session() session: Record<string, any>,
+        @Body('user')
+        user: {
+            fullname?: string;
+            password?: string;
+        },
+    ) {
+        try {
+            const user_id = await session.user_id;
+            console.log('user_id : ', user_id);
+            return {
+                message: 'success',
+                statuscode: HttpStatus.OK,
+                data: await this.userService.changeinformation(user, user_id),
+            };
+        } catch (error) {
+            throw new NotFoundException(error);
+        }
+    }
 
-    //     }
-    // }
+    @Public()
+    @Get('/profile/:user_id')
+    async Profile(@Param('user_id') user_id: number) {
+        try {
+            return {
+                statusCode: HttpStatus.OK,
+                data: await this.userService.profile(user_id),
+                message: 'get profile success!!!',
+            };
+        } catch (error) {
+            throw new NotFoundException(error);
+        }
+    }
+
+    @Get('post-pending')
+    async PostsPending(@Session() session: Record<string, any>) {
+        try {
+            const user_id = session.user_id;
+            return {
+                codeStatus: HttpStatus.OK,
+                data: await this.userService.postPending(user_id),
+                message: 'query success',
+            };
+        } catch (error) {
+            throw new NotFoundException(error);
+        }
+    }
 }

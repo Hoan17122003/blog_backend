@@ -20,8 +20,7 @@ export class LocalAuthGuard implements CanActivate {
         try {
             const request = context.switchToHttp().getRequest();
             const { username, password, email } = request.body;
-            console.log('username : ', username, ' password:', password);
-            if (!username || !password) throw new UnauthorizedException('thông tin không được bỏ trống');
+            if ((!username && !email) || !password) throw new UnauthorizedException('thông tin không được bỏ trống');
             const payload = await this.authService.validate(username, password, email);
             request.session.payload = payload;
         } catch (error) {

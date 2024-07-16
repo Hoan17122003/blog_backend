@@ -22,7 +22,8 @@ export class AuthController {
     @Post('login/local')
     async Login(@Session() session: Record<string, any>) {
         try {
-            const user_id: number = session.payload['payload'];
+            const user_id: number = session.payload['user_id'];
+
             return {
                 message: 'login success !!!',
                 statuscode: HttpStatus.OK,
@@ -36,7 +37,7 @@ export class AuthController {
     @Post('logout')
     async Logout(@Session() session: Record<string, any>) {
         try {
-            const user_id = await session.user_id['user_id'];
+            const user_id = await session.user_id;
             console.log('user_id : ', user_id);
 
             return this.authService.logout(user_id);

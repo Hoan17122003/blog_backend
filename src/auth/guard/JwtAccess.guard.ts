@@ -29,11 +29,8 @@ export class JwtAccessAuth implements CanActivate {
                 secret: process.env.JWTACCESSTOKENSECRET,
             });
             const { user_id } = payload;
-            console.log('payload : ', payload);
             const user = await this.userServie.findById(user_id);
-            console.log('user 1 : ', user);
             if (!user) throw new ForbiddenException('User not found');
-            console.log('user_id : ', user_id);
             requests.session.user_id = user_id;
         } catch (error) {
             throw new ForbiddenException(error);

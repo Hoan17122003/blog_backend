@@ -1,6 +1,7 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToMany } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToMany, Check, Unique } from 'typeorm';
 import { Post } from './post.entity';
 
+@Unique(['tag_name'])
 @Entity('Tag')
 export class Tag {
     @PrimaryGeneratedColumn('increment', {

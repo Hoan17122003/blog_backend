@@ -18,14 +18,16 @@ export class ValidateToKenInterceptor implements NestInterceptor {
         next: CallHandler<any>,
     ): Promise<Observable<any>> | Promise<Observable<any>> {
         const requests = context.switchToHttp().getRequest();
-        const valueToken = requests.Body;
-        const validateToken = await this.jwtService.verifyAsync(valueToken.validateToken, {
+        const { valueToken } = requests.body;
+        const token = requests.headers['token'];
+        console.log('valueToken', valueToken, ' token: ', token);
+        const validateToken = await this.jwtService.verifyAsync(token, {
             secret: process.env.VALIDATESECRET,
         });
-        const token = valueToken.token;
+        // const token = valueToken.token;
+        console.log('validateToken : ', validateToken);
 
-        if (validateToken != token) throw new ForbiddenException('mã xác thực không chính xác');
-        
+        if (validateToken.validateToken != valueToken) throw new ForbiddenException('mã xác thực không chính xác');
 
         return next.handle().pipe(
             map((data) => ({
