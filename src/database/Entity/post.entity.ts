@@ -9,10 +9,12 @@ import {
     OneToMany,
     Check,
 } from 'typeorm';
+
 import { Tag } from './tag.entity';
 import { User } from './user.entity';
 import { Comment } from './comment.entity';
 import { Category } from './category.entity';
+import { Image } from './Image.entity';
 
 //post_state = 1 active , post_state = 0 pending, post_state = -1 destroy
 @Check('post_state <= 1 and post_state >= -1')
@@ -32,8 +34,8 @@ export class Post {
     post_name: string;
 
     @Column({
-        type: 'nvarchar',
-        length: 2000,
+        type: 'text',
+        // length: 2000,
         nullable: false,
     })
     post_content: string;
@@ -101,4 +103,8 @@ export class Post {
         name: 'category_id',
     })
     categories: Category;
+
+    @OneToMany(() => Image, (image) => image.post)
+    @JoinColumn({ name: 'image_id' })
+    images: Image[];
 }

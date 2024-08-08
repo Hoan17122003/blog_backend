@@ -13,8 +13,8 @@ export class AuthService {
         @Inject('USER') private readonly userService: UserService,
     ) {}
 
-    public async validate(username: string, password: string, email?: string) {
-        const user = await this.userService.findRelative(username, email);
+    public async validate(username: string, password: string) {
+        const user = await this.userService.findRelative(username);
         if (!user) {
             throw new UnauthorizedException('thông tin đăng nhập không chính xác');
         }

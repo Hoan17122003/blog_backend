@@ -3,37 +3,39 @@ import { Like, Repository } from 'typeorm';
 import { User } from '../database/Entity/user.entity';
 import { UserDTO } from './dto/user.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { dataSource } from 'src/database/database.providers';
 
 @Injectable()
 export class UserService {
     constructor(@Inject('USERREPOSITORY') private readonly userRepository: Repository<User>) {}
 
     public async CreateAccount(data: UserDTO) {
-        const isCheck = await this.userRepository.findOne({
-            select: {
-                email: true,
-                username: true,
-            },
-            where: [
-                {
-                    email: data.email,
+        try {
+            const isCheck = await this.userRepository.findOne({
+                select: {
+                    email: true,
+                    username: true,
                 },
-                {
-                    username: data.username,
-                },
-            ],
-        });
-        console.log('isCheck ', isCheck);
-        if (isCheck?.username === data.username)
-            throw new ForbiddenException('username bạn cung cấp đã tồn tại trong hệ thống');
-        else if (isCheck?.email === data.email)
-            throw new ForbiddenException('email bạn cung cấp đã tồn tại trong hệ thống');
+                where: [
+                    {
+                        email: data.email,
+                    },
+                    {
+                        username: data.username,
+                    },
+                ],
+            });
+            if (isCheck?.username === data.username)
+                throw new ForbiddenException('username bạn cung cấp đã tồn tại trong hệ thống');
+            else if (isCheck?.email === data.email)
+                throw new ForbiddenException('email bạn cung cấp đã tồn tại trong hệ thống');
 
-        const user: User = new User(data.username, data.password, data.fullname, data.role, data.email);
-        console.log('user : ', user);
-        const userEntity: User = await this.userRepository.save(user);
-        console.log(userEntity);
-        return userEntity;
+            const user: User = new User(data.username, data.password, data.fullname, data.role, data.email);
+            const userEntity: User = await this.userRepository.save(user);
+            return userEntity;
+        } catch (error) {
+            throw new ForbiddenException(error);
+        }
     }
 
     public async updateAvatar(user_id: number, avatar: any): Promise<User> {
@@ -68,7 +70,6 @@ export class UserService {
 
     public async setRefreshToken(user_id: number, refresh_token: string = null): Promise<number> {
         const isCheck = await this.userRepository.update({ user_id }, { refresh_token: refresh_token });
-        console.log(isCheck.affected);
         return isCheck.affected;
     }
 
@@ -108,8 +109,7 @@ export class UserService {
         });
         return user;
     }
-    public async findRelative(username: string, email: string): Promise<User> {
-        console.log('email : ', email);
+    public async findRelative(username: string): Promise<User> {
         const user = await this.userRepository.findOne({
             select: {
                 user_id: true,
@@ -118,13 +118,14 @@ export class UserService {
                 role: true,
                 avatar: true,
                 email: true,
+                isActive: true,
             },
             where: [
                 {
                     username: username,
                 },
                 {
-                    email: email,
+                    email: username,
                 },
             ],
         });
@@ -156,6 +157,12 @@ export class UserService {
                 skip: pageSize * (pageNumber - 1),
                 take: pageSize,
             });
+            // users.forEach((element) => {
+            //     if (element.avatar) {
+            //         element.avatar = `upload/${element.avatar}`;
+            //         console.log('element avatar : ', element.avatar);
+            //     }
+            // });
             return users;
         } catch (error) {
             throw new NotFoundException(error);
@@ -187,6 +194,7 @@ export class UserService {
                     email: true,
                     avatar: true,
                     role: true,
+                    user_id: true,
                     posts: {
                         post_name: true,
                         post_content: true,
@@ -233,6 +241,19 @@ export class UserService {
             throw new NotFoundException(error);
         }
     }
+    public me(userId: number) {
+        return this.userRepository.findOne({
+            select: {
+                username: true,
+                avatar: true,
+                email: true,
+                role: true,
+            },
+            where: {
+                user_id: userId,
+            },
+        });
+    }
 
     //api giúp người dùng biết các api các bài viết của mình đang chờ duyệt
     async postPending(user_id: number) {
@@ -271,5 +292,21 @@ export class UserService {
         } catch (error) {
             throw new NotFoundException(error);
         }
+    }
+
+    public async Follow(user_id: number, userIdFollow: number): Promise<number> {
+        const following = { user_id: userIdFollow } as User;
+
+        console.log('following : ', following);
+        console.log('typeof : ', typeof following);
+        const user = await this.userRepository.findOne({
+            where: {
+                user_id,
+            },
+        });
+        user.following = [following];
+        const a = this.userRepository.save(user);
+
+        return a ? 1 : 0;
     }
 }

@@ -77,8 +77,7 @@ export class User {
     refresh_token: string;
 
     @Column({
-        type: 'blob',
-        default: null,
+        nullable: true,
     })
     avatar: string;
 
@@ -94,6 +93,12 @@ export class User {
     })
     isActive: number;
 
+    @Column({
+        type: 'boolean',
+        default: false,
+    })
+    isOnline: boolean;
+
     ///////////////////////////////////
     @OneToMany(() => Post, (post) => post.user_wirte)
     @JoinColumn({
@@ -101,13 +106,13 @@ export class User {
     })
     posts: Post[];
 
-    @OneToMany(() => Chat, (chat) => chat.users_sent)
+    @OneToMany(() => Chat, (chat) => chat.sender)
     @JoinColumn({
         name: 'chat_id',
     })
     chats_sents: Chat[];
 
-    @OneToMany(() => Chat, (chat) => chat.users_received)
+    @OneToMany(() => Chat, (chat) => chat.receiver)
     @JoinColumn({
         name: 'chat_id',
     })

@@ -12,6 +12,12 @@ import {
     Query,
     Get,
     UseInterceptors,
+    Param,
+    NotFoundException,
+    ParseIntPipe,
+    UploadedFiles,
+    BadRequestException,
+    NotAcceptableException,
 } from '@nestjs/common';
 
 import { PostSerivce } from './post.service';
@@ -24,6 +30,11 @@ import { UserService } from 'src/user/user.service';
 import { TagService } from 'src/tag/tag.service';
 import { Public } from 'src/auth/decorator/public.decorator';
 import { LoggingPost } from './interceptor/loggingpost.interceptor';
+import { FileFieldsInterceptor, FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import ImageDTO from './dto/image.dto';
+import { ImageService } from './image.service';
+import { diskStorage } from 'multer';
+import * as path from 'path';
 
 @UseGuards(JwtAccessAuth)
 @Controller('post')
@@ -32,27 +43,107 @@ export class PostController {
         private readonly postService: PostSerivce,
         private readonly userService: UserService,
         private readonly tagService: TagService,
+        private readonly imageService: ImageService,
     ) {}
 
+    // create post
     @Post('create')
     async CreatePost(@Body('post') createPostDto: CreatePostDto, @Session() session: Record<string, any>) {
         try {
+            console.log('hehehhee : ', createPostDto.category_name);
+
             const user_id = session.user_id;
+            const postCheck = await this.postService.create(createPostDto, user_id, this.userService, this.tagService);
+
             return {
                 message: 'create post success',
                 statusCode: HttpStatus.OK,
-                data: (await this.postService.create(createPostDto, user_id, this.userService, this.tagService))
-                    ? 'đăng bài thành công, đang chờ duyệt'
-                    : 'đăng bài thất bại',
+                data: postCheck ? 'đăng bài thành công, đang chờ duyệt' : 'đăng bài thất bại',
+                postId: postCheck.post_id,
             };
         } catch (error) {
-            throw new ConflictException(error);
+            // throw new NotAcceptableException(error);
+            throw new Error(error);
+        }
+    } 
+
+    //create images with post
+    @UseInterceptors(
+        FilesInterceptor('images', 10, {
+            storage: diskStorage({
+                destination: './uploads/post',
+                filename: (req, file, cb) => {
+                    console.log('file : ', file.originalname);
+                    const filename: string = path.parse(file.originalname).name.replace(/\s/g, '') + Date.now();
+                    const extension: string = path.parse(file.originalname).ext;
+                    console.log(filename, ' :extension : ', extension);
+                    cb(null, `${filename}${extension}`);
+                    // cb(null, file.originalname);
+                },
+            }),
+            fileFilter: (req, file, callback) => {
+                if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
+                    return callback(null, false);
+                }
+                callback(null, true);
+            },
+        }),
+    )
+    // @UseInterceptors(FilesInterceptor('images'))
+    @Post('image')
+    async CreateImageWithPost(
+        // @UploadedFiles() files: { images?: Express.Multer.File[] },
+        @UploadedFiles() files: Array<Express.Multer.File>,
+        @Body('post_id', ParseIntPipe) post_id: number,
+        @Body('positions') positions: number[] | number,
+    ) {
+        try {
+            console.log('postiosn : ', positions);
+            positions = positions
+                .toString()
+                .split(',')
+                .map((element) => Number(element));
+            const postEntity = await this.postService.findById(post_id);
+            if (!postEntity) throw new ForbiddenException('bài viết không tồn tại ');
+            if (files.length == 0) throw new ForbiddenException('Khong co file anh nao dc up');
+            const image = files.map((element, index) => ({
+                file: element,
+                positions: positions[index],
+            }));
+            console.log('image : ', image);
+            return {
+                statusCode: HttpStatus.OK,
+                message: 'tạo ảnh thành công',
+                data: await this.imageService.createImagePost(files, post_id, positions),
+                // data: 'hehehe',
+            };
+        } catch (error) {
+            throw new ForbiddenException(error);
         }
     }
+
     @Public()
     @Get('all')
-    async GetAll() {
-        return this.postService.getAll();
+    async GetAll(@Query('q', ParseIntPipe) pageNumber: number, @Query('p', ParseIntPipe) pageSize: number) {
+        try {
+            return this.postService.getPosts(pageNumber, pageSize);
+        } catch (error) {
+            throw new Error(error);
+        }
+    }
+
+    @Public()
+    @Get('detail/:PostId')
+    async GetDetail(@Param('PostId') postId: number) {
+        try {
+            return {
+                codeStatus: HttpStatus.OK,
+                message: 'lấy dữ liệu thành công',
+                data: await this.postService.getPostDetail(postId),
+            };
+        } catch (error) {
+            throw new Error(error);
+        }
     }
 
     @Delete('delete')
@@ -64,11 +155,17 @@ export class PostController {
                     ? 'xoá bài viết thất bại'
                     : 'xoá bài viết thành công',
             };
-        } catch (error) {}
+        } catch (error) {
+            throw new Error(error);
+        }
     }
 
-    @Put('change')
-    async ChangePost(@Body('post') changePostDTO: CreatePostDto, @Session() session: Record<string, any>) {
+    @Put('change/:post_id')
+    async ChangePost(
+        @Param('post_id') post_id: number,
+        @Body('post') changePostDTO: CreatePostDto,
+        @Session() session: Record<string, any>,
+    ) {
         const user_id = session.user_id;
         try {
             return {
@@ -111,7 +208,6 @@ export class PostController {
     @UseGuards(RolesGuard)
     @Get('get-history-browse-articles')
     async GetHisitoryBrownseArticles(@Query('user_id') user_id: number) {
-        console.log('hehehe')
         return this.postService.getAdminBrowseArticles(user_id);
     }
 }

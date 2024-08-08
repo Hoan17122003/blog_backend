@@ -10,6 +10,8 @@ import { PostController } from './post.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { UserModule } from 'src/user/user.module';
 import { TagModule } from 'src/tag/tag.module';
+import { Image } from 'src/database/Entity/Image.entity';
+import { ImageService } from './image.service';
 
 @Module({
     imports: [
@@ -23,7 +25,12 @@ import { TagModule } from 'src/tag/tag.module';
             port: 6380,
         }),
     ],
-    providers: [unknowProviders('POSTREPOSITORY', Post), PostSerivce],
+    providers: [
+        unknowProviders('POSTREPOSITORY', Post),
+        PostSerivce,
+        unknowProviders('IMAGEREPOSITORY', Image),
+        ImageService,
+    ],
     controllers: [PostController],
     exports: [PostSerivce],
 })

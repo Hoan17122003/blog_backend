@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, ManyToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToMany, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { User } from './user.entity';
 
 @Entity('Chat')
@@ -29,22 +29,22 @@ export class Chat {
     })
     content: string;
 
-    @UpdateDateColumn({
-        type: 'datetime',
+    @Column({
+        type: 'timestamp',
         name: 'date_sent',
-        // default: Date.now(),
+        default: () => 'CURRENT_TIMESTAMP',
     })
     date_sent: Date;
 
-    @ManyToMany(() => User, (user) => user.chats_sents)
+    @ManyToOne(() => User, (user) => user.chats_sents)
     @JoinColumn({
         name: 'user_id',
     })
-    users_sent: User;
+    sender: User;
 
-    @ManyToMany(() => User, (user) => user.chats_received)
+    @ManyToOne(() => User, (user) => user.chats_received)
     @JoinColumn({
         name: 'user_id',
     })
-    users_received: User;
+    receiver: User;
 }

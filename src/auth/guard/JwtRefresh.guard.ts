@@ -23,7 +23,6 @@ export class JwtRefreshTokenGuard implements CanActivate {
         });
         const user_id = payload.payload;
 
-        console.log('payload : ', payload);
         requests.session.user_id = user_id;
         return this.authService.validateRefreshToken(payload.payload, token);
     }

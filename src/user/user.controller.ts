@@ -45,6 +45,7 @@ export class UserController {
     @Post('create-account/local')
     async create(@Body('user') data: UserDTO) {
         try {
+            console.log('data : ', data);
             const a = await this.userService.CreateAccount(data);
             return {
                 message: 'success',
@@ -63,12 +64,12 @@ export class UserController {
         @Body('subject') content: string,
         @Body('link') link?: string, // support forget password method
     ) {
+        console.log('nameEmail : ', nameEmail);
         let validateToken = '';
         for (let i = 0; i < 6; i++) {
             const tokenRandom = Math.floor(Math.random() * 9) + 1;
             validateToken += tokenRandom.toString();
         }
-        console.log('validate : ', validateToken);
 
         if (link) {
             const token = await this.jwtService.signAsync(
@@ -146,10 +147,11 @@ export class UserController {
     @UseInterceptors(
         FileInterceptor('avatar', {
             storage: diskStorage({
-                destination: './uploads',
+                destination: './uploads/user',
                 filename: (req, file, cb) => {
                     const filename: string = path.parse(file.originalname).name.replace(/\s/g, '') + Date.now();
                     const extension: string = path.parse(file.originalname).ext;
+                    console.log(filename, ' :extension : ', extension);
                     cb(null, `${filename}${extension}`);
                 },
             }),
@@ -164,10 +166,11 @@ export class UserController {
     @Put('/avatar')
     async UpLoadFile(@Session() session: Record<string, any>, @UploadedFile() file: Express.Multer.File) {
         const user_id = session.user_id;
-
         if (!file) {
             throw new NotFoundException('No file uploaded');
         }
+        console.log('file path : ', file.path);
+
         const updateUserDto = { avatar: file.path };
 
         return this.userService.updateAvatar(user_id, updateUserDto);
@@ -185,7 +188,6 @@ export class UserController {
     ) {
         try {
             const user_id = await session.user_id;
-            console.log('user_id : ', user_id);
             return {
                 message: 'success',
                 statuscode: HttpStatus.OK,
@@ -221,6 +223,30 @@ export class UserController {
             };
         } catch (error) {
             throw new NotFoundException(error);
+        }
+    }
+
+    @Post('follow')
+    public async Follow(@Session() session: Record<string, any>, @Body('userId') userId: number) {
+        try {
+            const user_id = session.user_id;
+            return {
+                codeStatus: HttpStatus.OK,
+                data: await this.userService.Follow(user_id, userId),
+                message: 'success',
+            };
+        } catch (error) {
+            throw new Error(error);
+        }
+    }
+
+    @Get('me')
+    public async Me(@Session() session: Record<string, any>) {
+        try {
+            const user_id = session.user_id;
+            return this.userService.me(user_id);
+        } catch (error) {
+            throw new Error(error);
         }
     }
 }

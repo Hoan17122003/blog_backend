@@ -12,6 +12,8 @@ import { AppController } from './app.controlle';
 import { AppService } from './app.service';
 import { PostSerivce } from './post/post.service';
 import * as redisStore from 'cache-manager-ioredis';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
 @Module({
     imports: [
@@ -27,6 +29,10 @@ import * as redisStore from 'cache-manager-ioredis';
             store: redisStore,
             host: 'localhost',
             port: 6380,
+        }),
+        ServeStaticModule.forRoot({
+            rootPath: join(__dirname, '..', 'uploads'),
+            serveRoot: '/uploads',
         }),
     ],
     providers: [AppService],

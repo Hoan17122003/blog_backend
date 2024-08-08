@@ -16,7 +16,6 @@ export class ValidateGuard implements CanActivate {
         const email = await this.jwtService.verifyAsync(token, {
             secret: process.env.VALIDATESECRET,
         });
-        console.log('email : ', email);
         const user = await this.userService.findByEmail(email);
         if (!user) throw new NotFoundException('not found');
         request.session.email = email;

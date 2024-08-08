@@ -3,6 +3,8 @@ import { Repository } from 'typeorm';
 import { User } from 'src/database/Entity/user.entity';
 import { Post } from 'src/database/Entity/post.entity';
 import { Comment } from 'src/database/Entity/comment.entity';
+import { dataSource } from 'src/database/database.providers';
+import { UserService } from 'src/user/user.service';
 
 @Injectable()
 export class CommentService {
@@ -66,20 +68,24 @@ export class CommentService {
         }
     }
 
-    async deleteComment(comment_id: number, user_id: number, post_id) {
+    async deleteComment(comment_id: number, post_id: number, user_id: number, userService: UserService) {
         try {
+            const userEntity = await userService.findById(user_id);
+
             const comment = await this.commentRepository.findOne({
                 where: {
                     comment_id: comment_id,
                     post_id,
-                    user_id,
+                    // user_id,
+                    user: userEntity,
                 },
             });
-            if (!comment) throw new ForbiddenException('bạn không thể truy cập vào tài nguyên này');
+            if (!comment && userEntity.role != 'admin')
+                throw new ForbiddenException('bạn không thể truy cập vào tài nguyên này');
             await this.commentRepository.delete(comment_id);
             return true;
         } catch (error) {
-            throw new NotFoundException(error);
+            throw new ForbiddenException(error);
         }
     }
 }

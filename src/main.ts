@@ -1,9 +1,9 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { join } from 'path';
 import * as dotenv from 'dotenv';
 import * as session from 'express-session';
+import * as cookieParser from 'cookie-parser';
 
 dotenv.config({
     path: 'local.env',
@@ -15,7 +15,7 @@ async function bootstrap() {
     //     prefix: '/uploads/',
     // });
     const app = await NestFactory.create(AppModule);
-
+    app.use(cookieParser());
     app.use(
         session({
             secret: process.env.SESSIONSECRET,
@@ -26,6 +26,13 @@ async function bootstrap() {
             },
         }),
     );
-    await app.listen(8080);
+
+    app.enableCors({
+        origin: 'http://localhost:3000',
+        credentials: true,
+    });
+    await app.listen(process.env.PORT, () => {
+        console.log(`server listening is port ${process.env.PORT}`);
+    });
 }
 bootstrap();

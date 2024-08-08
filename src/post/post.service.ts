@@ -1,4 +1,12 @@
-import { ConflictException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import {
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    Inject,
+    Injectable,
+    NotAcceptableException,
+    NotFoundException,
+} from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 
 import { CreatePostDto } from './dto/post.dto';
@@ -11,6 +19,8 @@ import { Tag } from 'src/database/Entity/tag.entity';
 import { UserService } from 'src/user/user.service';
 import { TagService } from 'src/tag/tag.service';
 import { Cache } from 'cache-manager';
+import { Comment } from 'src/database/Entity/comment.entity';
+import { Image } from 'src/database/Entity/Image.entity';
 
 @Injectable()
 export class PostSerivce {
@@ -19,44 +29,119 @@ export class PostSerivce {
         @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     ) {}
 
-    async getAll() {
-        const posts = await this.postRepository.find({
-            select: {
-                post_name: true,
-                post_content: true,
-                react: true,
-                user_wirte: {
-                    fullname: true,
-                    email: true,
-                    avatar: true,
+    async getPosts(pageNumber: number, pageSize: number) {
+        try {
+            const [posts, count] = await this.postRepository.findAndCount({
+                where: {
+                    post_state: 1,
                 },
-                comments: {
-                    user: {
-                        fullname: true,
-                        avatar: true,
+                order: {
+                    post_date: 'asc',
+                },
+                relations: ['tag', 'user_wirte', 'categories', 'images'],
+                skip: (pageNumber - 1) * pageNumber,
+                take: pageSize,
+            });
+            posts.forEach((post) => {
+                delete post.user_wirte.password;
+                delete post.user_wirte.refresh_token;
+                delete post.category_id;
+            });
+            console.log('count : ', count);
+
+            return posts;
+        } catch (error) {
+            throw new Error(error);
+        }
+    }
+
+    async getPostDetail(post_id: number) {
+        try {
+            const post = await this.postRepository.find({
+                select: {
+                    post_name: true,
+                    post_content: true,
+                    post_date: true,
+                    react: true,
+                    comments: {
+                        user: {
+                            fullname: true,
+                            avatar: true,
+                            email: true,
+                            password: false,
+                            user_id: true,
+                        },
+                        content: true,
+                        comment_date: true,
+                        comment_id: true,
+                        parent: {
+                            user: {
+                                fullname: true,
+                                avatar: true,
+                                email: true,
+                                password: false,
+                                user_id: true,
+                            },
+                            content: true,
+                            comment_date: true,
+                            comment_id: true,
+                        },
                     },
-
-                    content: true,
+                    user_wirte: {
+                        password: false,
+                        refresh_token: false,
+                        username: false,
+                        avatar: true,
+                        user_id: true,
+                        fullname: true,
+                        email: true,
+                        role: true,
+                        followers: true,
+                        following: true,
+                    },
+                    categories: {
+                        category_name: true,
+                    },
+                    tag: {
+                        tag_name: true,
+                    },
+                    images: true,
                 },
-                tag: {
-                    tag_name: true,
+                where: {
+                    post_id,
+                    // post_state: 1,
                 },
-            },
-            where: {
-                post_name: Like(`%Công nghệ%`),
-            },
-            order: {
-                post_name: 'ASC',
-            },
+                relations: {
+                    tag: true,
+                    comments: {
+                        parent: {
+                            user: true,
+                        },
+                        user: true,
+                    },
+                    user_wirte: {
+                        followers: true,
+                        following: true,
+                    },
+                    categories: true,
+                    images: true,
+                },
+            });
 
-            relations: {
-                tag: true,
-                user_wirte: true,
-                comments: true,
-            },
-        });
-        console.log('posts : ', posts);
-        return posts;
+            if (post[0].images) {
+                post[0].images.forEach((image) => {
+                    console.log('imageposition : ', image.position);
+                    const placeHolder = `[image[${image.position}]]`;
+                    const imgTag = `<img src="http://localhost:8080/${image.url}" alt="Image ${image.position}" />`;
+                    post[0].post_content = post[0].post_content.replace(placeHolder, imgTag);
+                });
+                delete post[0].images;
+            }
+
+            return post[0];
+        } catch (error) {
+            throw new Error(error);
+        }
     }
 
     async create(
@@ -78,38 +163,49 @@ export class PostSerivce {
                     categories: true,
                 },
             });
-            if (postCheck) throw new ConflictException('bài viết của bạn đã tồn tại');
+            if (postCheck) {
+                throw new Error('bài viết của bạn đã tồn tại');
+            }
 
             const resultAllPromise = await Promise.allSettled([
-                await dataSource
+                dataSource
                     .getRepository(Category)
                     .createQueryBuilder()
-                    .where('category_name = :TenDanhMuc', {
-                        TenDanhMuc: postDTO.category_name,
-                    })
+                    .where('category_name = :TenDanhMuc', { TenDanhMuc: postDTO.category_name })
                     .getOne(),
-                await userService.findById(user_id),
-                await tagService.findOne(postDTO.tag_name),
-            ]).then(async (result) => {
-                const [category, user, tag] = result;
-                let newTag: Tag = tag['value'];
-                console.log('newTag : ', newTag);
-                if (postDTO.tag_name && !newTag?.tag_id) {
-                    newTag = await tagService.save(postDTO.tag_name);
-                }
-                return [category['value'], user['value'], newTag];
-            });
+                userService.findById(user_id),
+                tagService.findOne(postDTO.tag_name),
+            ]);
 
-            const [categoryEntity, userEntity, tag] = resultAllPromise;
+            const [categoryResult, userResult, tagResult] = resultAllPromise;
 
-            const post = new Post(postDTO.post_name, postDTO.post_content, user_id, categoryEntity.category_id);
-            post.user_wirte = userEntity;
-            post.categories = categoryEntity;
-            post.tag = [tag];
+            if (
+                categoryResult.status !== 'fulfilled' ||
+                userResult.status !== 'fulfilled' ||
+                tagResult.status !== 'fulfilled'
+            ) {
+                throw new Error('Error in retrieving data');
+            }
+
+            let category = categoryResult.value;
+            let user = userResult.value;
+            let tag = tagResult.value;
+
+            let newTag: Tag = tag;
+            if (postDTO.tag_name && !newTag?.tag_id) {
+                newTag = await tagService.save(postDTO.tag_name);
+            }
+
+            const post = new Post(postDTO.post_name, postDTO.post_content, user_id, category.category_id);
+            post.user_wirte = user;
+            post.categories = category;
+            post.tag = [newTag];
             post.comments = null;
+            post.images = null;
+
             return this.postRepository.save(post);
         } catch (error) {
-            throw new ConflictException(error);
+            throw new Error(error);
         }
     }
 
@@ -146,73 +242,70 @@ export class PostSerivce {
         }
     }
 
-    async destroy(postId: number[], user_id: number): Promise<boolean> {
+    async destroy(postId: number[], user_id: number): Promise<any[]> {
         try {
-            let result: number[];
-            postId.forEach(async (post_id) => {
-                const post = await this.postRepository.findOne({
+            const result = await postId.map(async (post_id) => {
+                console.log(typeof post_id);
+                const postEntitiy = await this.postRepository.findOne({
                     where: {
                         post_id,
-                        user_id,
                     },
                 });
-                if (!post) throw new ForbiddenException(`${post_id} không tồn tại`);
+                console.log('hehehe : ', postEntitiy);
+                if (!postEntitiy) throw new ForbiddenException(`${post_id} không tồn tại`);
+                const a = Promise.all([
+                    dataSource
+                        .createQueryBuilder()
+                        .update(Comment)
+                        // .from(Comment)
+                        .set({
+                            parent: null,
+                        })
+                        .where('post_id = :postId', {
+                            postId,
+                        })
+                        .execute()
+                        .then(() => {
+                            dataSource
+                                .createQueryBuilder()
+                                .delete()
+                                .from(Comment)
+                                .where('post_id = :post_id', {
+                                    post_id,
+                                })
+                                .execute();
+                        }),
+                    ,
+                    dataSource
+                        .createQueryBuilder()
+                        .delete()
+                        .from(Image)
+                        .where('post_id = :postId', {
+                            postId,
+                        })
+                        .execute(),
+                ]);
                 const check = (await this.postRepository.delete({ post_id })).affected;
-                result.push(check);
+                return check;
             });
-            return result.includes(0);
+            return result;
         } catch (error) {
             throw new ForbiddenException(error);
         }
     }
 
     async search(searchValue: string, pageSize: number, pageNumber: number): Promise<Post[]> {
-        let result: Post[] = await this.postRepository.find({
-            select: {
-                post_name: true,
-                post_content: true,
-                post_date: true,
-                react: true,
-                post_state: true,
-                user_wirte: {
-                    user_id: true,
-                    fullname: true,
-                    avatar: true,
-                    email: true,
-                },
-                tag: {
-                    tag_name: true,
-                },
-                comments: {
-                    comment_id: true,
-                    user: {
-                        username: true,
-                        avatar: true,
-                    },
-                    content: true,
-                    comment_date: true,
-                    parent: {
-                        content: true,
-                        comment_date: true,
-                        comment_id: true,
-                        user: {
-                            fullname: true,
-                            role: true,
-                        },
-                    },
-                },
-                categories: {
-                    category_name: true,
-                },
-            },
+        let [resutl, total] = await this.postRepository.findAndCount({
             where: [
                 {
                     post_name: Like(`%${searchValue}%`),
+                    post_state: 1,
                 },
                 {
                     user_wirte: {
                         fullname: Like(`%${searchValue}%`),
                     },
+                    post_state: 1,
                 },
             ],
             relations: {
@@ -225,13 +318,20 @@ export class PostSerivce {
                 categories: true,
             },
 
-            // skip: (pageNumber - 1) * pageSize,
-            // take: pageSize,
+            skip: (pageNumber - 1) * pageSize,
+            take: pageSize,
             order: {
                 post_name: 'ASC',
             },
         });
-        return result;
+        resutl.forEach((post) => {
+            delete post.user_wirte.password;
+            delete post.user_wirte.refresh_token;
+            delete post.user_wirte.user_id;
+            delete post.category_id;
+            delete post.user_id;
+        });
+        return resutl;
     }
     async getPostPending() {
         return this.postRepository.find({
@@ -257,7 +357,6 @@ export class PostSerivce {
             if (user_id ?? true) {
                 return loggingAdminPost;
             }
-            console.log('loggingadminpost : ', loggingAdminPost);
             return 1;
         } catch (error) {
             throw new Error(error);

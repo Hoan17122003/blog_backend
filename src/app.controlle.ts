@@ -1,4 +1,4 @@
-import { Controller, Get, HttpStatus, NotFoundException, Query } from '@nestjs/common';
+import { Controller, Get, Header, HttpStatus, NotFoundException, Query } from '@nestjs/common';
 import { AppService } from './app.service';
 import { PostSerivce } from './post/post.service';
 import { UserService } from './user/user.service';
@@ -14,10 +14,11 @@ export class AppController {
 
     // how to call ?
     // answer flag = page is search all value post, flag = user call value all user
+
     @Get('search')
     async Search(
         @Query('q') searchValue: string,
-        @Query('p') flag: string = 'page',
+        @Query('p') flag: string,
         @Query('PageNumber') pageNumber: number,
         @Query('PageSize') pageSize: number,
     ) {

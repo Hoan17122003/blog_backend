@@ -20,12 +20,10 @@ export class ValidateToKenInterceptor implements NestInterceptor {
         const requests = context.switchToHttp().getRequest();
         const { valueToken } = requests.body;
         const token = requests.headers['token'];
-        console.log('valueToken', valueToken, ' token: ', token);
         const validateToken = await this.jwtService.verifyAsync(token, {
             secret: process.env.VALIDATESECRET,
         });
         // const token = valueToken.token;
-        console.log('validateToken : ', validateToken);
 
         if (validateToken.validateToken != valueToken) throw new ForbiddenException('mã xác thực không chính xác');
 

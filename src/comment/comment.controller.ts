@@ -96,21 +96,20 @@ export class CommentController {
         }
     }
 
-    @Delete('/PostId/DeleteComment')
+    @Delete('/PostId/DeleteComment/:PostId/:CommentId')
     async DeleteComent(
         @Session() session: Record<string, any>,
-        @Body('data')
-        data: {
-            post_id: number;
-            comment_id: number;
-        },
+        @Param('PostId') postId: number,
+        @Param('CommentId') commentId: number,
     ) {
         try {
             const user_id = session.user_id;
             return {
                 codeStatus: HttpStatus.OK,
                 message: 'delete success!!!',
-                data: await this.commentService.deleteComment(data.post_id, data.comment_id, user_id) ? "xoá thành công bình luận thành công" : "xoá bình luận thất bại",
+                data: (await this.commentService.deleteComment(commentId, postId, user_id, this.userService))
+                    ? 'xoá thành công bình luận thành công'
+                    : 'xoá bình luận thất bại',
             };
         } catch (error) {
             throw new ForbiddenException(error);

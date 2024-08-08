@@ -25,7 +25,6 @@ export class AppService {
         pageSize: number,
     ): Promise<Array<Post> | Array<User>> {
         try {
-            console.log('flag : ', flag);
             if (flag === 'user') {
                 // // xử lý dữ liệu cache như thế nào khi dữ liệu mới người dùng vừa nhập vào ?
                 // // giải pháp : check mỗi 30p ? vì dự án yêu cầu xử lý thời gian thực không cao
@@ -52,12 +51,9 @@ export class AppService {
                 // }
                 // phân trang thông thường
                 const users: Array<User> = await userService.search(searchValue, pageSize, pageNumber);
-                console.log('user', users);
                 return users;
             } else if (flag === 'page') {
                 const posts: Array<Post> = await postService.search(searchValue, pageSize, pageNumber);
-                console.log('post : ', posts);
-
                 return posts;
             }
         } catch (error) {

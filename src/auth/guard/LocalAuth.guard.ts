@@ -19,9 +19,9 @@ export class LocalAuthGuard implements CanActivate {
     async canActivate(context: ExecutionContext): Promise<boolean> {
         try {
             const request = context.switchToHttp().getRequest();
-            const { username, password, email } = request.body;
-            if ((!username && !email) || !password) throw new UnauthorizedException('thông tin không được bỏ trống');
-            const payload = await this.authService.validate(username, password, email);
+            const { username, password } = request.body;
+            if (!username || !password) throw new UnauthorizedException('thông tin không được bỏ trống');
+            const payload = await this.authService.validate(username, password);
             request.session.payload = payload;
         } catch (error) {
             throw new UnauthorizedException(error);
