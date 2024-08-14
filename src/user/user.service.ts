@@ -169,7 +169,10 @@ export class UserService {
         }
     }
 
-    public async changeinformation(data: { fullname?: string; password?: string }, user_id: number): Promise<string> {
+    public async changeinformation(
+        data: { fullname?: string; password?: string; email?: string },
+        user_id: number,
+    ): Promise<string> {
         const user = await this.userRepository.findOne({
             where: {
                 user_id,
@@ -196,18 +199,13 @@ export class UserService {
                     role: true,
                     user_id: true,
                     posts: {
+                        post_id: true,
                         post_name: true,
                         post_content: true,
                         post_date: true,
                         post_state: true,
-                        comments: {
-                            user: {
-                                username: true,
-                                avatar: true,
-                                role: true,
-                            },
-                            content: true,
-                            comment_date: true,
+                        images: {
+                            url: true,
                         },
                         react: true,
                     },
@@ -222,7 +220,9 @@ export class UserService {
                     user_id: user_id,
                 },
                 relations: {
-                    posts: true,
+                    posts: {
+                        images: true,
+                    },
                     followers: true,
                     following: true,
                 },
@@ -235,10 +235,10 @@ export class UserService {
             if (user && user[0].posts) {
                 user[0].posts = user[0].posts.filter((post) => post.post_state === 1);
             }
-            if (!user) throw new NotFoundException('không tim thấy trang người dùng');
+            if (!user) throw new ForbiddenException('không tim thấy trang người dùng');
             return user;
         } catch (error) {
-            throw new NotFoundException(error);
+            throw new ForbiddenException(error);
         }
     }
     public me(userId: number) {
@@ -248,6 +248,7 @@ export class UserService {
                 avatar: true,
                 email: true,
                 role: true,
+                fullname: true,
             },
             where: {
                 user_id: userId,
@@ -297,8 +298,6 @@ export class UserService {
     public async Follow(user_id: number, userIdFollow: number): Promise<number> {
         const following = { user_id: userIdFollow } as User;
 
-        console.log('following : ', following);
-        console.log('typeof : ', typeof following);
         const user = await this.userRepository.findOne({
             where: {
                 user_id,
@@ -308,5 +307,53 @@ export class UserService {
         const a = this.userRepository.save(user);
 
         return a ? 1 : 0;
+    }
+    public async FollowingArticles(userId: number, pageNumber: number, pageSize: number) {
+        try {
+            const userPostFollowing = await this.userRepository.find({
+                select: {
+                    following: {
+                        username: true,
+                        email: true,
+                        avatar: true,
+                        user_id: true,
+                        posts: {
+                            post_id: true,
+                            post_name: true,
+                            post_content: true,
+                            post_date: true,
+                            images: true,
+                        },
+                    },
+                },
+                where: {
+                    user_id: userId,
+                    following: {
+                        posts: {
+                            post_state: 1,
+                        },
+                    },
+                },
+                relations: {
+                    following: {
+                        posts: {
+                            tag: true,
+                            categories: true,
+                            images: true,
+                        },
+                    },
+                },
+                // order: {
+                //     posts: {
+                //         post_date: 'DESC',
+                //     },
+                // },
+                skip: (pageNumber - 1) * pageNumber,
+                take: pageSize,
+            });
+            return userPostFollowing[0].following;
+        } catch (error) {
+            throw new Error(error);
+        }
     }
 }

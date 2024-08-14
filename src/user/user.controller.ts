@@ -45,7 +45,6 @@ export class UserController {
     @Post('create-account/local')
     async create(@Body('user') data: UserDTO) {
         try {
-            console.log('data : ', data);
             const a = await this.userService.CreateAccount(data);
             return {
                 message: 'success',
@@ -64,7 +63,6 @@ export class UserController {
         @Body('subject') content: string,
         @Body('link') link?: string, // support forget password method
     ) {
-        console.log('nameEmail : ', nameEmail);
         let validateToken = '';
         for (let i = 0; i < 6; i++) {
             const tokenRandom = Math.floor(Math.random() * 9) + 1;
@@ -151,7 +149,6 @@ export class UserController {
                 filename: (req, file, cb) => {
                     const filename: string = path.parse(file.originalname).name.replace(/\s/g, '') + Date.now();
                     const extension: string = path.parse(file.originalname).ext;
-                    console.log(filename, ' :extension : ', extension);
                     cb(null, `${filename}${extension}`);
                 },
             }),
@@ -169,7 +166,6 @@ export class UserController {
         if (!file) {
             throw new NotFoundException('No file uploaded');
         }
-        console.log('file path : ', file.path);
 
         const updateUserDto = { avatar: file.path };
 
@@ -184,6 +180,7 @@ export class UserController {
         user: {
             fullname?: string;
             password?: string;
+            email?: string;
         },
     ) {
         try {
@@ -211,6 +208,24 @@ export class UserController {
             throw new NotFoundException(error);
         }
     }
+
+    @Get('profile')
+    async MeProfile(@Session() session: Record<string, any>) {
+        const userId = session.user_id;
+
+        try {
+            return {
+                statusCode: HttpStatus.OK,
+                data: await this.userService.profile(userId),
+                message: 'Get me profile success!!!',
+                flag: true,
+            };
+        } catch (error) {
+            throw new ForbiddenException(error);
+        }
+    }
+
+    // @Get('profile/me')
 
     @Get('post-pending')
     async PostsPending(@Session() session: Record<string, any>) {
@@ -248,5 +263,14 @@ export class UserController {
         } catch (error) {
             throw new Error(error);
         }
+    }
+    @Get('FollowingArticles')
+    public async ArticlesFollowing(
+        @Session() session: Record<string, any>,
+        @Query('pn') pageNumber: number,
+        @Query('ps') pageSize: number,
+    ) {
+        const user_id = session.user_id;
+        return { data: await this.userService.FollowingArticles(user_id, pageNumber, pageSize) };
     }
 }

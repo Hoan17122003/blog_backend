@@ -53,4 +53,13 @@ export class CategoryService {
 
         return categories;
     }
+
+    public async getAll(): Promise<Category[]> {
+        const result = await this.categoryRepository.find({
+            select: {
+                category_name: true,
+            },
+        });
+        return result;
+    }
 }

@@ -50,8 +50,6 @@ export class PostController {
     @Post('create')
     async CreatePost(@Body('post') createPostDto: CreatePostDto, @Session() session: Record<string, any>) {
         try {
-            console.log('hehehhee : ', createPostDto.category_name);
-
             const user_id = session.user_id;
             const postCheck = await this.postService.create(createPostDto, user_id, this.userService, this.tagService);
 
@@ -65,7 +63,7 @@ export class PostController {
             // throw new NotAcceptableException(error);
             throw new Error(error);
         }
-    } 
+    }
 
     //create images with post
     @UseInterceptors(
@@ -73,10 +71,8 @@ export class PostController {
             storage: diskStorage({
                 destination: './uploads/post',
                 filename: (req, file, cb) => {
-                    console.log('file : ', file.originalname);
                     const filename: string = path.parse(file.originalname).name.replace(/\s/g, '') + Date.now();
                     const extension: string = path.parse(file.originalname).ext;
-                    console.log(filename, ' :extension : ', extension);
                     cb(null, `${filename}${extension}`);
                     // cb(null, file.originalname);
                 },
@@ -98,7 +94,6 @@ export class PostController {
         @Body('positions') positions: number[] | number,
     ) {
         try {
-            console.log('postiosn : ', positions);
             positions = positions
                 .toString()
                 .split(',')
@@ -110,7 +105,6 @@ export class PostController {
                 file: element,
                 positions: positions[index],
             }));
-            console.log('image : ', image);
             return {
                 statusCode: HttpStatus.OK,
                 message: 'tạo ảnh thành công',
@@ -124,12 +118,22 @@ export class PostController {
 
     @Public()
     @Get('all')
-    async GetAll(@Query('q', ParseIntPipe) pageNumber: number, @Query('p', ParseIntPipe) pageSize: number) {
+    // async GetAll(@Query('q', ParseIntPipe) pageNumber: number, @Query('p', ParseIntPipe) pageSize: number) {
+    async GetAll(@Query() data: { q: number; p: number; categoryName?: string; tagName?: string }) {
         try {
-            return this.postService.getPosts(pageNumber, pageSize);
+            if (data.categoryName === 'undefined' && data.tagName === 'undefined') {
+                return this.postService.getPosts(data.q, data.p);
+            }
+            return this.postService.getPosts(data.q, data.p, data.categoryName, data.tagName);
         } catch (error) {
             throw new Error(error);
         }
+    }
+
+    @Public()
+    @Get('count')
+    public async CountPost() {
+        return this.postService.countPost();
     }
 
     @Public()
@@ -146,10 +150,14 @@ export class PostController {
         }
     }
 
-    @Delete('delete')
-    async DeletePost(@Body('post_ids') postId: number[], @Session() session: Record<string, any>) {
+    @Delete('delete/:post_id')
+    async DeletePost(@Param('post_id') postId: number[], @Session() session: Record<string, any>) {
         try {
             const user_id = session.user_id;
+            postId = postId
+                .toString()
+                .split(',')
+                .map((element) => Number.parseInt(element, 10));
             return {
                 data: (await this.postService.destroy(postId, user_id))
                     ? 'xoá bài viết thất bại'

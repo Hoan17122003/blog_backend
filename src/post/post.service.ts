@@ -10,7 +10,7 @@ import {
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 
 import { CreatePostDto } from './dto/post.dto';
-import { Like, Repository } from 'typeorm';
+import { Brackets, Like, Repository } from 'typeorm';
 import { Post } from 'src/database/Entity/post.entity';
 import { dataSource } from 'src/database/database.providers';
 import { Category } from 'src/database/Entity/category.entity';
@@ -29,30 +29,67 @@ export class PostSerivce {
         @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     ) {}
 
-    async getPosts(pageNumber: number, pageSize: number) {
+    async getPosts(pageNumber: number, pageSize: number, categoryName?: string, tagName?: string) {
         try {
-            const [posts, count] = await this.postRepository.findAndCount({
-                where: {
-                    post_state: 1,
-                },
-                order: {
-                    post_date: 'asc',
-                },
-                relations: ['tag', 'user_wirte', 'categories', 'images'],
-                skip: (pageNumber - 1) * pageNumber,
-                take: pageSize,
-            });
+            let posts;
+            if (categoryName == undefined && tagName == undefined) {
+                posts = await this.postRepository.find({
+                    where: {
+                        post_state: 1,
+                    },
+                    order: {
+                        post_date: 'asc',
+                    },
+                    relations: {
+                        tag: true,
+                        user_wirte: true,
+                        categories: true,
+                        images: true,
+                    },
+                    skip: (pageNumber - 1) * pageNumber,
+                    take: pageSize,
+                });
+            } else {
+                posts = await this.postRepository
+                    .createQueryBuilder('post')
+                    .where('post.post_state = :postState', { postState: 1 })
+                    .andWhere(
+                        new Brackets((qb) => {
+                            qb.where('categories.category_name = :categoryName', { categoryName }).orWhere(
+                                'tag.tag_name = :tagName',
+                                { tagName },
+                            );
+                        }),
+                    )
+                    .leftJoinAndSelect('post.tag', 'tag')
+                    .leftJoinAndSelect('post.user_wirte', 'user_wirte')
+                    .leftJoinAndSelect('post.categories', 'categories')
+                    .leftJoinAndSelect('post.images', 'images')
+                    .orderBy('post.post_date', 'ASC')
+                    .skip((pageNumber - 1) * pageSize)
+                    .take(pageSize)
+                    .getMany();
+            }
+
             posts.forEach((post) => {
                 delete post.user_wirte.password;
                 delete post.user_wirte.refresh_token;
                 delete post.category_id;
             });
-            console.log('count : ', count);
 
             return posts;
         } catch (error) {
             throw new Error(error);
         }
+    }
+
+    public async countPost() {
+        const listPost = await this.postRepository.find({
+            select: {
+                post_id: true,
+            },
+        });
+        return listPost.length;
     }
 
     async getPostDetail(post_id: number) {
@@ -130,7 +167,6 @@ export class PostSerivce {
 
             if (post[0].images) {
                 post[0].images.forEach((image) => {
-                    console.log('imageposition : ', image.position);
                     const placeHolder = `[image[${image.position}]]`;
                     const imgTag = `<img src="http://localhost:8080/${image.url}" alt="Image ${image.position}" />`;
                     post[0].post_content = post[0].post_content.replace(placeHolder, imgTag);
@@ -174,34 +210,40 @@ export class PostSerivce {
                     .where('category_name = :TenDanhMuc', { TenDanhMuc: postDTO.category_name })
                     .getOne(),
                 userService.findById(user_id),
-                tagService.findOne(postDTO.tag_name),
             ]);
 
-            const [categoryResult, userResult, tagResult] = resultAllPromise;
+            const [categoryResult, userResult] = resultAllPromise;
 
-            if (
-                categoryResult.status !== 'fulfilled' ||
-                userResult.status !== 'fulfilled' ||
-                tagResult.status !== 'fulfilled'
-            ) {
+            if (categoryResult.status !== 'fulfilled' || userResult.status !== 'fulfilled') {
                 throw new Error('Error in retrieving data');
             }
 
             let category = categoryResult.value;
             let user = userResult.value;
-            let tag = tagResult.value;
 
-            let newTag: Tag = tag;
-            if (postDTO.tag_name && !newTag?.tag_id) {
-                newTag = await tagService.save(postDTO.tag_name);
+            const listTag = postDTO.tag_name.toString().split(',');
+            let newTag: Array<Tag> = new Array<Tag>();
+            if (listTag.length > 0) {
+                listTag.forEach(async (element) => {
+                    const tag: Tag = await tagService.findOne(element);
+                    if (!tag) {
+                        const tempTag: Tag = await tagService.save(element);
+                        newTag.push(tempTag);
+                    }
+                });
+            }
+            let post_state = 0;
+            if (user.role === 'admin') {
+                post_state = 1;
             }
 
             const post = new Post(postDTO.post_name, postDTO.post_content, user_id, category.category_id);
             post.user_wirte = user;
             post.categories = category;
-            post.tag = [newTag];
+            post.tag = [...newTag];
             post.comments = null;
             post.images = null;
+            post.post_state = post_state;
 
             return this.postRepository.save(post);
         } catch (error) {
@@ -245,13 +287,11 @@ export class PostSerivce {
     async destroy(postId: number[], user_id: number): Promise<any[]> {
         try {
             const result = await postId.map(async (post_id) => {
-                console.log(typeof post_id);
                 const postEntitiy = await this.postRepository.findOne({
                     where: {
                         post_id,
                     },
                 });
-                console.log('hehehe : ', postEntitiy);
                 if (!postEntitiy) throw new ForbiddenException(`${post_id} không tồn tại`);
                 const a = Promise.all([
                     dataSource

@@ -11,7 +11,7 @@ export class TagService {
         tag.tag_name = tag_name;
         return this.tagRepository.save(tag);
     }
-    async findOne(tag_name): Promise<Tag> {
+    async findOne(tag_name: string): Promise<Tag> {
         return this.tagRepository.findOne({
             where: {
                 tag_name,

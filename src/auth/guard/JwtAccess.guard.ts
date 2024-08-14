@@ -23,6 +23,7 @@ export class JwtAccessAuth implements CanActivate {
         if (isPublic) return true;
         const requests = context.switchToHttp().getRequest();
         const token = this.extractTokenFromHeader(requests);
+
         if (!token) throw new ForbiddenException('Không thể truy cập tài nguyên do token của bạn không hợp lệ');
         try {
             const payload = await this.jwtService.verifyAsync(token, {

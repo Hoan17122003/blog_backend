@@ -15,11 +15,13 @@ export class JwtRefreshTokenGuard implements CanActivate {
         const requests = context.switchToHttp().getRequest();
         // refresh_token
         const token = this.extractTokenFromHeader(requests);
+        console.log('token : ', token);
         if (!token) {
             return false;
         }
+        console.log('jwtRefreshSecret : ', process.env.JWTREFRESHTOKENSECRET);
         const payload = await this.jwtService.verifyAsync(token, {
-            secret: process.env.JWT_REFRESH_TOKEN_SECRET,
+            secret: process.env.JWTREFRESHTOKENSECRET,
         });
         const user_id = payload.payload;
 

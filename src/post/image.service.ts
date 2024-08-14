@@ -14,14 +14,12 @@ export class ImageService {
         position: number[] | number,
     ): Promise<Image[]> {
         try {
-            console.log('files : ', files);
             const listImagesEntity = await Promise.all(
                 files.map(async (image, index) => {
                     const imageEntity = new Image();
                     imageEntity.url = image.path;
                     imageEntity.position = position[index];
                     imageEntity.post = { post_id } as Post;
-                    console.log('imageEntity : ', imageEntity);
                     return this.repository.save(imageEntity);
                 }),
             );

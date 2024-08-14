@@ -33,6 +33,19 @@ export class CategoryController {
         }
     }
 
+    @Get('all')
+    public async GetAllCategory(@Session() session: Record<string, any>) {
+        try {
+            return {
+                data: await this.categoryService.getAll(),
+                statusCode: HttpStatus.OK,
+                message: 'get all category success',
+            };
+        } catch (error) {
+            throw new ForbiddenException(error);
+        }
+    }
+
     @Get('fillter')
     async FillterPost(
         @Query('q') categoryName: string,
