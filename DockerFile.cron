@@ -1,0 +1,18 @@
+FROM alpine:latest
+
+RUN apk --no-cache add mysql-client bash
+
+# Tạo thư mục backup
+RUN mkdir /backup
+
+# Sao chép script sao lưu vào container
+COPY backup.sh /usr/local/bin/backup.sh
+
+# Thiết lập quyền thực thi cho script
+RUN chmod +x /usr/local/bin/backup.sh
+
+# Sao chép crontab vào container
+COPY crontab /etc/crontabs/root
+
+# Thiết lập cron service chạy ở foreground
+CMD ["crond", "-f"]

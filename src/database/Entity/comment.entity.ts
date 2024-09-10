@@ -10,18 +10,16 @@ export class Comment {
     })
     comment_id: number;
 
-    @Column()
+    @Column({
+        type: 'text',
+    })
     content: string;
 
-    @CreateDateColumn({
-        type: 'datetime',
+    @Column({
+        type: 'timestamp',
+        default: () => 'CURRENT_TIMESTAMP',
     })
     comment_date: Date;
-
-    @Column({
-        type: 'int',
-    })
-    level: number;
 
     @Column({
         type: 'int',
@@ -44,4 +42,9 @@ export class Comment {
         name: 'post_id',
     })
     post: Post;
+
+    @ManyToOne(() => Comment, {
+        nullable: true,
+    })
+    parent: Comment;
 }

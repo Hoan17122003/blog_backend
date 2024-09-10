@@ -7,12 +7,17 @@ import {
     ManyToOne,
     JoinColumn,
     OneToMany,
+    Check,
 } from 'typeorm';
+
 import { Tag } from './tag.entity';
 import { User } from './user.entity';
 import { Comment } from './comment.entity';
 import { Category } from './category.entity';
+import { Image } from './Image.entity';
 
+//post_state = 1 active , post_state = 0 pending, post_state = -1 destroy
+@Check('post_state <= 1 and post_state >= -1')
 @Entity('Post')
 export class Post {
     @PrimaryGeneratedColumn('increment', {
@@ -29,15 +34,16 @@ export class Post {
     post_name: string;
 
     @Column({
-        type: 'nvarchar',
-        length: 2000,
+        type: 'text',
+        // length: 2000,
         nullable: false,
     })
     post_content: string;
 
     @Column({
-        type: 'datetime',
+        type: 'timestamp',
         name: 'post_date',
+        default: () => 'CURRENT_TIMESTAMP',
     })
     post_date: Date;
 
@@ -49,7 +55,7 @@ export class Post {
 
     @Column({
         type: 'int',
-        name: 'user_id',
+        // name: 'user_id',
     })
     user_id: number;
 
@@ -67,6 +73,13 @@ export class Post {
     })
     category_id: number;
 
+    public constructor(post_name: string, post_content: string, user_id: number, category_id: number) {
+        this.post_name = post_name;
+        this.post_content = post_content;
+        this.user_id = user_id;
+        this.category_id = category_id;
+    }
+
     ////////////////////////////////relation ship
 
     @ManyToOne(() => User, (user) => user.posts)
@@ -77,17 +90,21 @@ export class Post {
 
     @ManyToMany(() => Tag, (tag) => tag.posts)
     @JoinTable()
-    tag: Tag[];
+    tag?: Tag[];
 
     @OneToMany(() => Comment, (comment) => comment.post)
     @JoinColumn({
         name: 'comment_id',
     })
-    comments: Comment[];
+    comments?: Comment[];
 
     @ManyToOne(() => Category, (category) => category.posts)
     @JoinColumn({
         name: 'category_id',
     })
     categories: Category;
+
+    @OneToMany(() => Image, (image) => image.post)
+    @JoinColumn({ name: 'image_id' })
+    images: Image[];
 }

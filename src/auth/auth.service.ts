@@ -13,9 +13,8 @@ export class AuthService {
         @Inject('USER') private readonly userService: UserService,
     ) {}
 
-    public async validate(username: string, password: string, email?: string) {
-        const user = await this.userService.findRelative(username, email);
-        console.log('user : ', user);
+    public async validate(username: string, password: string) {
+        const user = await this.userService.findRelative(username);
         if (!user) {
             throw new UnauthorizedException('thông tin đăng nhập không chính xác');
         }
@@ -33,8 +32,8 @@ export class AuthService {
     }
 
     public async login(user_id: number): Promise<{ access_token: string; refresh_token: string }> {
-        const refresh_token = await this.generateRefreshToken(user_id);
-        const access_token = await this.generateAccessToken(user_id);
+        const refresh_token = this.generateRefreshToken(user_id);
+        const access_token = this.generateAccessToken(user_id);
         await this.userService.setRefreshToken(user_id, refresh_token);
         return {
             access_token,
@@ -42,9 +41,8 @@ export class AuthService {
         };
     }
 
-    public async generateAccessToken(user_id: number): Promise<string> {
-        console.log(process.env.JWTACCESSTOKENSECRET, process.env.JWTACCESSTOKENTIME);
-        return await this.jwtService.signAsync(
+    public generateAccessToken(user_id: number) {
+        return this.jwtService.sign(
             { user_id },
             {
                 secret: process.env.JWTACCESSTOKENSECRET,
@@ -53,8 +51,8 @@ export class AuthService {
         );
     }
 
-    public async generateRefreshToken(user_id: number): Promise<string> {
-        return await this.jwtService.signAsync(
+    public generateRefreshToken(user_id: number) {
+        return this.jwtService.sign(
             { user_id },
             {
                 secret: process.env.JWTREFRESHTOKENSECRET,

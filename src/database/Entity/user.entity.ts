@@ -4,6 +4,8 @@ import {
     Column,
     Entity,
     JoinColumn,
+    JoinTable,
+    ManyToMany,
     OneToMany,
     OneToOne,
     PrimaryGeneratedColumn,
@@ -11,23 +13,29 @@ import {
 } from 'typeorm';
 import * as argon from 'argon2';
 
-import { Admin } from './admin.entity';
 import { Chat } from './chat.entity';
-import { Follow } from './follow.entity';
 import { Post } from './post.entity';
 import { Comment } from './comment.entity';
 import { UserRole } from 'src/user/enum/user.enum';
 
-@Check('isActive >= -1 and isActive <= 1')
 @Entity('User')
+@Check('isActive >= -1 and isActive <= 1')
 @Unique(['username'])
 export class User {
-    public constructor(username: string, password: string, fullname: string, role: string, email: string) {
+    public constructor(username?: string, password?: string, fullname?: string, role?: string, email?: string) {
         this.username = username;
         this.password = password;
         this.fullname = fullname;
         this.role = role;
         this.email = email;
+    }
+
+    public setUser(user: User): void {
+        this.username = user.username;
+        this.password = user.password;
+        this.fullname = user.fullname;
+        this.role = user.role;
+        this.email = user.email;
     }
 
     @PrimaryGeneratedColumn('increment', {
@@ -69,8 +77,7 @@ export class User {
     refresh_token: string;
 
     @Column({
-        type: 'blob',
-        default: null,
+        nullable: true,
     })
     avatar: string;
 
@@ -86,6 +93,12 @@ export class User {
     })
     isActive: number;
 
+    @Column({
+        type: 'boolean',
+        default: false,
+    })
+    isOnline: boolean;
+
     ///////////////////////////////////
     @OneToMany(() => Post, (post) => post.user_wirte)
     @JoinColumn({
@@ -93,31 +106,33 @@ export class User {
     })
     posts: Post[];
 
-    @OneToMany(() => Chat, (chat) => chat.users_sent)
+    @OneToMany(() => Chat, (chat) => chat.sender)
     @JoinColumn({
         name: 'chat_id',
     })
     chats_sents: Chat[];
 
-    @OneToMany(() => Chat, (chat) => chat.users_received)
+    @OneToMany(() => Chat, (chat) => chat.receiver)
     @JoinColumn({
         name: 'chat_id',
     })
     chats_received: Chat[];
 
-    @OneToMany(() => Follow, (follow) => follow.isFollowings)
-    @JoinColumn({
-        name: 'user_id',
-        foreignKeyConstraintName: 'FK_Follow_user_id',
+    @ManyToMany(() => User)
+    @JoinTable({
+        name: 'followers',
+        joinColumn: { name: 'user_id', referencedColumnName: 'user_id' },
+        inverseJoinColumn: { name: 'followerId', referencedColumnName: 'user_id' },
     })
-    userIsFollowing: Follow[];
+    followers: User[];
 
-    @OneToMany(() => Follow, (follow) => follow.follower)
-    @JoinColumn({
-        name: 'user_id',
-        foreignKeyConstraintName: 'FK_Follow_user_id',
+    @ManyToMany(() => User)
+    @JoinTable({
+        name: 'following',
+        joinColumn: { name: 'followerId', referencedColumnName: 'user_id' },
+        inverseJoinColumn: { name: 'user_id', referencedColumnName: 'user_id' },
     })
-    userIsFollower: Follow[];
+    following: User[];
 
     @OneToMany(() => Comment, (comment) => comment.user)
     @JoinColumn({
